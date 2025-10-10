@@ -1,0 +1,390 @@
+"use client";
+
+import { useCartContext } from "@/context/CartContext";
+import { useAppContext } from "@/context/AppContext";
+import {
+  Elements,
+  useStripe,
+  useElements,
+  PaymentElement,
+} from "@stripe/react-stripe-js";
+import { loadStripe } from "@stripe/stripe-js";
+import { useState, useEffect, useMemo } from "react";
+
+if (!process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY) {
+  throw new Error("NEXT_PUBLIC_STRIPE_PUBLIC_KEY is not defined!");
+}
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY);
+
+export default function CheckoutPage() {
+  const { cartItems, discountRate, coupon } = useCartContext();
+  const { products } = useAppContext();
+  const cartArray = Object.entries(cartItems);
+  const [shipping, setShipping] = useState("free");
+  const [clientSecret, setClientSecret] = useState("");
+  const [isCreatingIntent, setIsCreatingIntent] = useState(false);
+
+  // ---- Billing form ----
+  const [form, setForm] = useState({
+    email: "",
+    phone : "",
+    firstName: "",
+    lastName: "",
+    country: "India",
+    street: "",
+    apartment: "",
+    city: "",
+    state: "",
+    notes: "",
+  });
+  const [errors, setErrors] = useState({});
+  const [couponInput, setCouponInput] = useState("");
+
+  useEffect(() => {
+    setCouponInput(coupon || "");
+  }, [coupon]);
+
+  // ---- Price calculations ----
+  const subtotal = useMemo(() => {
+    return cartArray.reduce((acc, [id, qty]) => {
+      const product = products.find((p) => p._id === id);
+      return acc + (product ? product.price * qty : 0);
+    }, 0);
+  }, [cartArray, products]);
+
+  const totalDiscount = subtotal * discountRate;
+  const discountedTotal = subtotal - totalDiscount;
+  const shippingCost = shipping === "expedited" ? 199 : 0;
+  const finalTotal = discountedTotal + shippingCost;
+
+  // ---- Validation ----
+  const validateField = (name, value) => {
+    switch (name) {
+      case "email":
+        if (!value) return "Email is required";
+        if (!/\S+@\S+\.\S+/.test(value)) return "Invalid email format";
+        break;
+      case "phone":
+        if (!value) return "Phone number is required";
+        if (!/^\d{10}$/.test(value)) return "Invalid phone number";
+        break;
+      case "firstName":
+        if (!value) return "First name is required";
+        break;
+      case "lastName":
+        if (!value) return "Last name is required";
+        break;
+      case "country":
+        if (!value) return "Country is required";
+        break;
+      case "street":
+        if (!value) return "Street address is required";
+        break;
+      case "city":
+        if (!value) return "City is required";
+        break;
+      case "state":
+        if (!value) return "State is required";
+        break;
+      default:
+        break;
+    }
+    return null;
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    Object.entries(form).forEach(([key, value]) => {
+      const error = validateField(key, value);
+      if (error) newErrors[key] = error;
+    });
+    setErrors(newErrors);
+    return newErrors;
+  };
+
+  const isFormValid = useMemo(() => {
+    const errs = validate();
+    return Object.keys(errs).length === 0;
+  }, [form]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    const fieldError = validateField(name, value);
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      if (fieldError) newErrors[name] = fieldError;
+      else delete newErrors[name];
+      return newErrors;
+    });
+  };
+
+  // ---- Create payment intent ----
+  useEffect(() => {
+    const createPaymentIntent = async () => {
+      if (!isFormValid) return; // Don’t hit API unless form is valid
+      setIsCreatingIntent(true);
+
+      try {
+        const res = await fetch("/api/create-payment-intent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: Math.round(finalTotal * 100),
+            billing: form, // include form data
+          }),
+        });
+        const data = await res.json();
+        setClientSecret(data.clientSecret);
+      } catch (err) {
+        console.error("Error creating payment intent:", err);
+      } finally {
+        setIsCreatingIntent(false);
+      }
+    };
+
+    createPaymentIntent();
+  }, [finalTotal, form, isFormValid]);
+
+  const isCartEmpty = Object.keys(cartItems).length === 0;
+
+  return (
+    <div className="max-w-5xl mx-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* Billing Form */}
+      <form
+        onSubmit={(e) => e.preventDefault()}
+        className="space-y-4"
+        noValidate
+      >
+        <h2 className="text-xl font-bold mb-4">Billing details</h2>
+
+        {/* Email */}
+        <div>
+          <label className="block font-medium">Email address *</label>
+          <input
+            type="email"
+            name="email"
+            value={form.email}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2"
+          />
+          {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
+        </div>
+
+        {/* Phone */}
+        <div>
+          <label className="block font-medium">Phone no. *</label>
+          <input
+            type="text"
+            name="phone"
+            value={form.phone}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2"
+          />
+          {errors.phone && <p className="text-red-500 text-sm">{errors.phone}</p>}
+        </div>
+
+        {/* First & Last Name */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block font-medium">First name *</label>
+            <input
+              type="text"
+              name="firstName"
+              value={form.firstName}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
+            />
+            {errors.firstName && (
+              <p className="text-red-500 text-sm">{errors.firstName}</p>
+            )}
+          </div>
+          <div>
+            <label className="block font-medium">Last name *</label>
+            <input
+              type="text"
+              name="lastName"
+              value={form.lastName}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
+            />
+            {errors.lastName && (
+              <p className="text-red-500 text-sm">{errors.lastName}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Country */}
+        <div>
+          <label className="block font-medium">Country / Region *</label>
+          <select
+            name="country"
+            value={form.country}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2"
+          >
+            <option value="">Select country</option>
+            <option value="India">India</option>
+            <option value="USA">United States</option>
+            <option value="UK">United Kingdom</option>
+            <option value="Canada">Canada</option>
+          </select>
+          {errors.country && (
+            <p className="text-red-500 text-sm">{errors.country}</p>
+          )}
+        </div>
+
+        {/* Street */}
+        <div>
+          <label className="block font-medium">Street address *</label>
+          <input
+            type="text"
+            name="street"
+            value={form.street}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2 mb-2"
+            placeholder="House number and street name"
+          />
+          <input
+            type="text"
+            name="apartment"
+            value={form.apartment}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2"
+            placeholder="Apartment, suite, unit, etc. (optional)"
+          />
+          {errors.street && (
+            <p className="text-red-500 text-sm">{errors.street}</p>
+          )}
+        </div>
+
+        {/* City */}
+        <div>
+          <label className="block font-medium">Town / City *</label>
+          <input
+            type="text"
+            name="city"
+            value={form.city}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2"
+          />
+          {errors.city && <p className="text-red-500 text-sm">{errors.city}</p>}
+        </div>
+
+        {/* State */}
+        <div>
+          <label className="block font-medium">State *</label>
+          <input
+            type="text"
+            name="state"
+            value={form.state}
+            onChange={handleChange}
+            className="w-full border rounded px-3 py-2"
+          />
+          {errors.state && <p className="text-red-500 text-sm">{errors.state}</p>}
+        </div>
+      </form>
+
+      {/* Order Summary + Stripe */}
+      <div className="bg-gray-50 p-6 rounded-lg shadow space-y-3">
+        <h2 className="text-xl font-bold mb-4">Your Order</h2>
+
+        <div className="divide-y">
+          {Object.entries(cartItems).map(([id, qty]) => {
+            const product = products.find((p) => p._id === id);
+            if (!product) return null;
+            return (
+              <div key={id} className="flex justify-between py-2">
+                <span>
+                  {product.name} × {qty}
+                </span>
+                <span>₹{(product.price * qty).toFixed(2)}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex justify-between font-semibold text-lg border-t pt-2 mt-2">
+          <span>Total:</span>
+          <span>₹{finalTotal.toFixed(2)}</span>
+        </div>
+
+        {clientSecret && (
+          <Elements stripe={stripePromise} options={{ clientSecret }}>
+            <StripeCheckoutForm
+              clientSecret={clientSecret}
+              amount={finalTotal}
+              isFormValid={isFormValid}
+            />
+          </Elements>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Stripe Checkout Form **/
+function StripeCheckoutForm({ clientSecret, amount, isFormValid }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [isPaymentElementComplete, setIsPaymentElementComplete] = useState(
+    false
+  );
+
+  const handleChange = (event) => {
+    setIsPaymentElementComplete(event.complete);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    if (!stripe || !elements || !isFormValid || !isPaymentElementComplete) {
+      setErrorMessage("Please fill all details and card info correctly.");
+      setLoading(false);
+      return;
+    }
+
+    const { error: submitError } = await elements.submit();
+    if (submitError) {
+      setErrorMessage(submitError.message);
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await stripe.confirmPayment({
+      elements,
+      clientSecret,
+      confirmParams: {
+        return_url: `http://localhost:3000/payment-success?amount=${amount}`,
+      },
+    });
+
+    if (error) setErrorMessage(error.message);
+    setLoading(false);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+      <PaymentElement onChange={handleChange} />
+
+      {errorMessage && <p className="text-red-500">{errorMessage}</p>}
+      <button
+        type="submit"
+        disabled={
+          !stripe || !isFormValid || !isPaymentElementComplete || loading
+        }
+        className={`w-full py-2 rounded-lg font-semibold ${
+          !stripe || !isFormValid || !isPaymentElementComplete
+            ? "bg-gray-400 cursor-not-allowed text-gray-200"
+            : "bg-green-600 text-white"
+        }`}
+      >
+        {loading ? "Processing..." : "Pay Now"}
+      </button>
+    </form>
+  );
+}

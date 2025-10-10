@@ -1,6 +1,8 @@
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AppContextProvider } from "@/context/AppContext";
+import { CartContextProvider } from "@/context/CartContext";
+
 import { Toaster } from "react-hot-toast";
 
 const outfit = Outfit({ subsets: ['latin'], weight: ["300", "400", "500"] })
@@ -16,7 +18,9 @@ export default function RootLayout({ children }) {
         <body className={`${outfit.className} antialiased text-gray-700`} >
           <Toaster />
           <AppContextProvider>
+            <CartContextProvider>
             {children}
+            </CartContextProvider>
           </AppContextProvider>
         </body>
       </html>

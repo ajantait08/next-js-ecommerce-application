@@ -17,3 +17,14 @@
 ::-webkit-scrollbar {
   display: none;
 }
+
+.swiper-pagination-bullet {
+  background: #cbd5e1; /* gray-300 */
+  opacity: 1;
+  width: 8px;
+  height: 8px;
+}
+
+.swiper-pagination-bullet-active {
+  background: #2563eb; /* blue-600 */
+}
