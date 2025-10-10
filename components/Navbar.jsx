@@ -14,7 +14,6 @@ const Navbar = () => {
   //const {} = useCart();
   const { toggleCart, items , cartItems} = useCartContext();
   const cartArray = Object.entries(cartItems);
-  console.log("cart items in nav", cartArray);
 
 
   return (
@@ -31,6 +30,9 @@ const Navbar = () => {
         </Link>
         <Link href="/all-products" className="hover:text-gray-900 transition">
           Shop
+        </Link>
+        <Link href="/wishlist" className="hover:text-gray-900 transition">
+          Wishlist
         </Link>
         <Link href="/" className="hover:text-gray-900 transition">
           About Us

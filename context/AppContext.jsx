@@ -18,6 +18,38 @@ export const AppContextProvider = (props) => {
     const [userData, setUserData] = useState(false)
     const [isSeller, setIsSeller] = useState(false)
     const [cartItems, setCartItems] = useState({})
+    const [wishlist, setWishlist] = useState([])
+
+    //Load wishlist from localStorage on mount
+    useEffect(()=> {
+        const storedWishlist = localStorage.getItem("wishlist");
+        if(storedWishlist){
+            setWishlist(JSON.parse(storedWishlist));
+        }
+    } , []);
+
+    // Save wishlist to localStorage on change
+    useEffect(() => {
+        localStorage.setItem("wishlist",JSON.stringify(wishlist));
+    },[])
+
+    // Add or remove product from wishlist
+    const toggleWishlist = (product) => {
+        setWishlist((prev) => {
+            const alreadyWishlisted = prev.find((item) => item._id === product._id);
+            if (alreadyWishlisted) {
+               return prev.filter((item) => item._id !== product._id);
+            }
+            else {
+            return [...prev,product];
+            }        
+        });
+    }
+
+    // Check if product is in wishlist
+    const isInWishlist = (id) => {
+        return wishlist.some((item) => item._id === id);
+    }
 
     const fetchProductData = async () => {
         setProducts(productsDummyData)
@@ -87,7 +119,10 @@ export const AppContextProvider = (props) => {
         products, fetchProductData,
         cartItems, setCartItems,
         addToCart, updateCartQuantity,
-        getCartCount, getCartAmount
+        getCartCount, getCartAmount,
+        wishlist,
+        toggleWishlist,
+        isInWishlist
     }
 
     return (

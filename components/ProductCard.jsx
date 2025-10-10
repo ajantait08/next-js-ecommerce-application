@@ -3,17 +3,24 @@ import React, { useState } from "react";
 import { assets } from "@/assets/assets";
 import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
+import { useCartContext } from "@/context/CartContext";
 
 const ProductCard = ({ product }) => {
-  const { currency, router } = useAppContext();
-
-  // Track wishlist state
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  const { currency, router , toggleWishlist , isInWishlist } = useAppContext();
+  const { addToCart } = useCartContext();
+  
+  const isWishlisted = isInWishlist(product._id);
+  
 
   // Toggle wishlist status
   const handleWishlistToggle = (e) => {
     e.stopPropagation(); // Prevent redirect when clicking the heart
-    setIsWishlisted((prev) => !prev);
+    toggleWishlist(product);
+  };
+
+  const handleBuyNow = (productId) => {
+    addToCart(productId);
+    router.push("/checkout");
   };
 
   return (
@@ -81,8 +88,7 @@ const ProductCard = ({ product }) => {
         <button
           onClick={(e) => {
             e.stopPropagation(); // prevent product page redirect
-            router.push("/checkout");
-            scrollTo(0, 0);
+           handleBuyNow(product._id)
           }}
           className="max-sm:hidden px-4 py-1.5 text-gray-500 border border-gray-500/20 rounded-full text-xs hover:bg-slate-50 transition"
         >

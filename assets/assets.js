@@ -15,6 +15,7 @@ import increase_arrow from "./increase_arrow.svg";
 import decrease_arrow from "./decrease_arrow.svg";
 import arrow_right_icon_colored from "./arrow_right_icon_colored.svg";
 import my_location_image from "./my_location_image.svg";
+import empty_wishlist_image from "./empty_wishlist_image.png";
 import arrow_icon_white from "./arrow_icon_white.svg";
 import heart_icon from "./heart_icon.svg";
 import heart_filled_icon from "./heart_filled_icon.svg";
@@ -42,6 +43,7 @@ import sm_controller_image from "./sm_controller_image.png";
 import jbl_soundbox_image from "./jbl_soundbox_image.png";
 import boy_with_laptop_image from "./boy_with_laptop_image.png";
 import checkmark from "./checkmark.png";
+import delete_wishlist from "./delete_wishlist.png";
 import product_details_page_apple_earphone_image1 from "./product_details_page_apple_earphone_image1.png";
 import product_details_page_apple_earphone_image2 from "./product_details_page_apple_earphone_image2.png";
 import product_details_page_apple_earphone_image3 from "./product_details_page_apple_earphone_image3.png";
@@ -97,7 +99,9 @@ export const assets = {
   product_details_page_apple_earphone_image3,
   product_details_page_apple_earphone_image4,
   product_details_page_apple_earphone_image5,
-  checkmark
+  checkmark,
+  empty_wishlist_image,
+  delete_wishlist
 };
 
 export const BagIcon = () => {
