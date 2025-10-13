@@ -90,7 +90,10 @@ const ProductCard = ({ product }) => {
             e.stopPropagation(); // prevent product page redirect
            handleBuyNow(product._id)
           }}
-          className="max-sm:hidden px-4 py-1.5 text-gray-500 border border-gray-500/20 rounded-full text-xs hover:bg-slate-50 transition"
+          className="max-sm:hidden px-4 py-1.5 text-gray-500 border border-gray-500/20 rounded-full text-xs hover:bg-slate-50 transition rounded text-white font-semibold 
+                           bg-gradient-to-r from-orange-500 to-red-500 
+                           hover:from-red-500 hover:to-orange-500 
+                           shadow-lg shadow-orange-300/40 transition-all"
         >
           Buy now
         </button>

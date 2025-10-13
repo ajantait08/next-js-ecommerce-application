@@ -31,7 +31,7 @@ export const AppContextProvider = (props) => {
     // Save wishlist to localStorage on change
     useEffect(() => {
         localStorage.setItem("wishlist",JSON.stringify(wishlist));
-    },[])
+    },[wishlist])
 
     // Add or remove product from wishlist
     const toggleWishlist = (product) => {

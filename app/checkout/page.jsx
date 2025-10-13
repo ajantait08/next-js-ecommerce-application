@@ -18,7 +18,16 @@ if (!process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY) {
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY);
 
 export default function CheckoutPage() {
-  const { cartItems, discountRate, coupon } = useCartContext();
+  const {
+    cartItems,
+    incrementQuantity,
+    decrementQuantity,
+    removeFromCart,
+    coupon,
+    discountRate,
+    applyCoupon,
+    removeCoupon,
+  } = useCartContext();
   const { products } = useAppContext();
   const cartArray = Object.entries(cartItems);
   const [shipping, setShipping] = useState("free");
@@ -288,7 +297,7 @@ export default function CheckoutPage() {
 
       {/* Order Summary + Stripe */}
       <div className="bg-gray-50 p-6 rounded-lg shadow space-y-3">
-        <h2 className="text-xl font-bold mb-4">Your Order</h2>
+        <h2 className="text-xl font-bold mb-4">Order Details</h2>
 
         <div className="divide-y">
           {Object.entries(cartItems).map(([id, qty]) => {
@@ -303,6 +312,84 @@ export default function CheckoutPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* Coupon Section */}
+        <div className="mt-6 space-y-3">
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                placeholder="Coupon code"
+                value={couponInput}
+                onChange={(e) => setCouponInput(e.target.value)}
+                className="flex-1 border px-3 py-2 rounded"
+                disabled={discountRate > 0}
+              />
+              {discountRate > 0 ? (
+                <button
+                  onClick={removeCoupon}
+                  className="bg-red-500 text-white px-4 rounded"
+                >
+                  Remove
+                </button>
+              ) : (
+                <button
+                  onClick={() => applyCoupon(couponInput)}
+                  className="bg-gray-800 text-white px-4 rounded"
+                >
+                  Apply
+                </button>
+              )}
+            </div>
+
+            {discountRate > 0 && (
+              <p className="text-green-600 text-sm">
+                Coupon <span className="font-semibold">{coupon}</span> Applied !!
+              </p>
+            )}
+          </div>
+
+        {/* Subtotal */}
+        <div className="flex justify-between">
+          <span>Subtotal:</span>
+          <span>₹{subtotal.toFixed(2)}</span>
+        </div>
+
+        {discountRate > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Discount ({coupon}):</span>
+                <span>- ₹{totalDiscount.toFixed(2)}</span>
+              </div>
+            )}
+
+        {/* Shipping Options */}
+        <div className="space-y-2">
+          <p className="font-medium">Shipping:</p>
+          <label className="flex items-center space-x-2">
+            <input
+              type="radio"
+              value="free"
+              checked={shipping === "free"}
+              onChange={(e) => setShipping(e.target.value)}
+            />
+            <span>Free Shipping (₹0)</span>
+          </label>
+
+          <label className="flex items-center space-x-2">
+            <input
+              type="radio"
+              value="expedited"
+              checked={shipping === "expedited"}
+              onChange={(e) => setShipping(e.target.value)}
+            />
+            <span>Expedited Shipping (₹199)</span>
+          </label>
+        </div>
+
+        {/* Shipping cost */}
+        <div className="flex justify-between">
+          <span>Shipping Cost:</span>
+          <span>{shippingCost > 0 ? `₹${shippingCost}` : "₹0"}</span>
         </div>
 
         <div className="flex justify-between font-semibold text-lg border-t pt-2 mt-2">
