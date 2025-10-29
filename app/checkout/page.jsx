@@ -2,6 +2,8 @@
 
 import { useCartContext } from "@/context/CartContext";
 import { useAppContext } from "@/context/AppContext";
+import Navbar from "@/components/Navbar";
+import HideErrorText from "@/components/HideErrorText";
 import {
   Elements,
   useStripe,
@@ -10,6 +12,7 @@ import {
 } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { useState, useEffect, useMemo } from "react";
+import CouponBox from "@/components/CouponBox"; // ✅ dynamic coupon dropdown component
 
 if (!process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY) {
   throw new Error("NEXT_PUBLIC_STRIPE_PUBLIC_KEY is not defined!");
@@ -23,21 +26,18 @@ export default function CheckoutPage() {
     incrementQuantity,
     decrementQuantity,
     removeFromCart,
-    coupon,
-    discountRate,
-    applyCoupon,
-    removeCoupon,
+    coupon
   } = useCartContext();
   const { products } = useAppContext();
-  const cartArray = Object.entries(cartItems);
+
+  const cartArray = Array.isArray(cartItems) ? cartItems : [];
   const [shipping, setShipping] = useState("free");
   const [clientSecret, setClientSecret] = useState("");
   const [isCreatingIntent, setIsCreatingIntent] = useState(false);
 
-  // ---- Billing form ----
   const [form, setForm] = useState({
     email: "",
-    phone : "",
+    phone: "",
     firstName: "",
     lastName: "",
     country: "India",
@@ -45,27 +45,30 @@ export default function CheckoutPage() {
     apartment: "",
     city: "",
     state: "",
+    pincode: "",
     notes: "",
   });
+
   const [errors, setErrors] = useState({});
-  const [couponInput, setCouponInput] = useState("");
+  const [discount, setDiscount] = useState(0);
+  const [finalTotal, setFinalTotal] = useState(0);
 
-  useEffect(() => {
-    setCouponInput(coupon || "");
-  }, [coupon]);
-
-  // ---- Price calculations ----
+  // ---- Calculate subtotal ----
   const subtotal = useMemo(() => {
-    return cartArray.reduce((acc, [id, qty]) => {
-      const product = products.find((p) => p._id === id);
-      return acc + (product ? product.price * qty : 0);
+    return cartArray.reduce((acc, item) => {
+      const product = products.find((p) => p._id === item.product_id);
+      return acc + (product ? product.price * item.quantity : 0);
     }, 0);
   }, [cartArray, products]);
 
-  const totalDiscount = subtotal * discountRate;
-  const discountedTotal = subtotal - totalDiscount;
+  // ---- Shipping ----
   const shippingCost = shipping === "expedited" ? 199 : 0;
-  const finalTotal = discountedTotal + shippingCost;
+
+  // ---- Update final total whenever subtotal/discount/shipping changes ----
+  useEffect(() => {
+    const total = Math.max(subtotal - discount + shippingCost, 0);
+    setFinalTotal(total);
+  }, [subtotal, discount, shippingCost]);
 
   // ---- Validation ----
   const validateField = (name, value) => {
@@ -95,6 +98,10 @@ export default function CheckoutPage() {
         break;
       case "state":
         if (!value) return "State is required";
+        break;
+      case "pincode":
+        if(!value) return "Pincode is required";
+        if(!/^\d{6}$/.test(value)) return "Pincode must be 6 digits";
         break;
       default:
         break;
@@ -129,10 +136,10 @@ export default function CheckoutPage() {
     });
   };
 
-  // ---- Create payment intent ----
+  // ---- Create Stripe Payment Intent ----
   useEffect(() => {
     const createPaymentIntent = async () => {
-      if (!isFormValid) return; // Don’t hit API unless form is valid
+      if (!isFormValid) return;
       setIsCreatingIntent(true);
 
       try {
@@ -141,7 +148,7 @@ export default function CheckoutPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             amount: Math.round(finalTotal * 100),
-            billing: form, // include form data
+            billing: form,           
           }),
         });
         const data = await res.json();
@@ -159,267 +166,250 @@ export default function CheckoutPage() {
   const isCartEmpty = Object.keys(cartItems).length === 0;
 
   return (
-    <div className="max-w-5xl mx-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-      {/* Billing Form */}
-      <form
-        onSubmit={(e) => e.preventDefault()}
-        className="space-y-4"
-        noValidate
-      >
-        <h2 className="text-xl font-bold mb-4">Billing details</h2>
+    <>
+    <HideErrorText />
+      <Navbar />
+      <div className="max-w-5xl mx-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Billing Form */}
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-4" noValidate>
+          <h2 className="text-xl font-bold mb-4">Billing details</h2>
 
-        {/* Email */}
-        <div>
-          <label className="block font-medium">Email address *</label>
-          <input
-            type="email"
-            name="email"
-            value={form.email}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-          />
-          {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
-        </div>
-
-        {/* Phone */}
-        <div>
-          <label className="block font-medium">Phone no. *</label>
-          <input
-            type="text"
-            name="phone"
-            value={form.phone}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-          />
-          {errors.phone && <p className="text-red-500 text-sm">{errors.phone}</p>}
-        </div>
-
-        {/* First & Last Name */}
-        <div className="grid grid-cols-2 gap-4">
+          {/* Email */}
           <div>
-            <label className="block font-medium">First name *</label>
+            <label className="block font-medium">Email address *</label>
             <input
-              type="text"
-              name="firstName"
-              value={form.firstName}
+              type="email"
+              name="email"
+              value={form.email}
               onChange={handleChange}
               className="w-full border rounded px-3 py-2"
             />
-            {errors.firstName && (
-              <p className="text-red-500 text-sm">{errors.firstName}</p>
-            )}
+            {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
           </div>
+
+          {/* Phone */}
           <div>
-            <label className="block font-medium">Last name *</label>
+            <label className="block font-medium">Phone no. *</label>
             <input
               type="text"
-              name="lastName"
-              value={form.lastName}
+              name="phone"
+              value={form.phone}
               onChange={handleChange}
               className="w-full border rounded px-3 py-2"
             />
-            {errors.lastName && (
-              <p className="text-red-500 text-sm">{errors.lastName}</p>
-            )}
+            {errors.phone && <p className="text-red-500 text-sm">{errors.phone}</p>}
           </div>
-        </div>
 
-        {/* Country */}
-        <div>
-          <label className="block font-medium">Country / Region *</label>
-          <select
-            name="country"
-            value={form.country}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-          >
-            <option value="">Select country</option>
-            <option value="India">India</option>
-            <option value="USA">United States</option>
-            <option value="UK">United Kingdom</option>
-            <option value="Canada">Canada</option>
-          </select>
-          {errors.country && (
-            <p className="text-red-500 text-sm">{errors.country}</p>
-          )}
-        </div>
-
-        {/* Street */}
-        <div>
-          <label className="block font-medium">Street address *</label>
-          <input
-            type="text"
-            name="street"
-            value={form.street}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2 mb-2"
-            placeholder="House number and street name"
-          />
-          <input
-            type="text"
-            name="apartment"
-            value={form.apartment}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-            placeholder="Apartment, suite, unit, etc. (optional)"
-          />
-          {errors.street && (
-            <p className="text-red-500 text-sm">{errors.street}</p>
-          )}
-        </div>
-
-        {/* City */}
-        <div>
-          <label className="block font-medium">Town / City *</label>
-          <input
-            type="text"
-            name="city"
-            value={form.city}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-          />
-          {errors.city && <p className="text-red-500 text-sm">{errors.city}</p>}
-        </div>
-
-        {/* State */}
-        <div>
-          <label className="block font-medium">State *</label>
-          <input
-            type="text"
-            name="state"
-            value={form.state}
-            onChange={handleChange}
-            className="w-full border rounded px-3 py-2"
-          />
-          {errors.state && <p className="text-red-500 text-sm">{errors.state}</p>}
-        </div>
-      </form>
-
-      {/* Order Summary + Stripe */}
-      <div className="bg-gray-50 p-6 rounded-lg shadow space-y-3">
-        <h2 className="text-xl font-bold mb-4">Order Details</h2>
-
-        <div className="divide-y">
-          {Object.entries(cartItems).map(([id, qty]) => {
-            const product = products.find((p) => p._id === id);
-            if (!product) return null;
-            return (
-              <div key={id} className="flex justify-between py-2">
-                <span>
-                  {product.name} × {qty}
-                </span>
-                <span>₹{(product.price * qty).toFixed(2)}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Coupon Section */}
-        <div className="mt-6 space-y-3">
-            <div className="flex space-x-2">
+          {/* First & Last Name */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block font-medium">First name *</label>
               <input
                 type="text"
-                placeholder="Coupon code"
-                value={couponInput}
-                onChange={(e) => setCouponInput(e.target.value)}
-                className="flex-1 border px-3 py-2 rounded"
-                disabled={discountRate > 0}
+                name="firstName"
+                value={form.firstName}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2"
               />
-              {discountRate > 0 ? (
-                <button
-                  onClick={removeCoupon}
-                  className="bg-red-500 text-white px-4 rounded"
-                >
-                  Remove
-                </button>
-              ) : (
-                <button
-                  onClick={() => applyCoupon(couponInput)}
-                  className="bg-gray-800 text-white px-4 rounded"
-                >
-                  Apply
-                </button>
+              {errors.firstName && (
+                <p className="text-red-500 text-sm">{errors.firstName}</p>
               )}
             </div>
+            <div>
+              <label className="block font-medium">Last name *</label>
+              <input
+                type="text"
+                name="lastName"
+                value={form.lastName}
+                onChange={handleChange}
+                className="w-full border rounded px-3 py-2"
+              />
+              {errors.lastName && (
+                <p className="text-red-500 text-sm">{errors.lastName}</p>
+              )}
+            </div>
+          </div>
 
-            {discountRate > 0 && (
-              <p className="text-green-600 text-sm">
-                Coupon <span className="font-semibold">{coupon}</span> Applied !!
-              </p>
+          {/* Country */}
+          <div>
+            <label className="block font-medium">Country / Region *</label>
+            <select
+              name="country"
+              value={form.country}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="">Select country</option>
+              <option value="India">India</option>
+              <option value="USA">United States</option>
+              <option value="UK">United Kingdom</option>
+              <option value="Canada">Canada</option>
+            </select>
+            {errors.country && (
+              <p className="text-red-500 text-sm">{errors.country}</p>
             )}
           </div>
 
-        {/* Subtotal */}
-        <div className="flex justify-between">
-          <span>Subtotal:</span>
-          <span>₹{subtotal.toFixed(2)}</span>
-        </div>
-
-        {discountRate > 0 && (
-              <div className="flex justify-between text-green-600">
-                <span>Discount ({coupon}):</span>
-                <span>- ₹{totalDiscount.toFixed(2)}</span>
-              </div>
+          {/* Address */}
+          <div>
+            <label className="block font-medium">Street address *</label>
+            <input
+              type="text"
+              name="street"
+              value={form.street}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 mb-2"
+              placeholder="House number and street name"
+            />
+            <input
+              type="text"
+              name="apartment"
+              value={form.apartment}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
+              placeholder="Apartment, suite, unit, etc. (optional)"
+            />
+            {errors.street && (
+              <p className="text-red-500 text-sm">{errors.street}</p>
             )}
+          </div>
 
-        {/* Shipping Options */}
-        <div className="space-y-2">
-          <p className="font-medium">Shipping:</p>
-          <label className="flex items-center space-x-2">
+          {/* City */}
+          <div>
+            <label className="block font-medium">Town / City *</label>
             <input
-              type="radio"
-              value="free"
-              checked={shipping === "free"}
-              onChange={(e) => setShipping(e.target.value)}
+              type="text"
+              name="city"
+              value={form.city}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
             />
-            <span>Free Shipping (₹0)</span>
-          </label>
+            {errors.city && <p className="text-red-500 text-sm">{errors.city}</p>}
+          </div>
 
-          <label className="flex items-center space-x-2">
+          {/* State */}
+          <div>
+            <label className="block font-medium">State *</label>
             <input
-              type="radio"
-              value="expedited"
-              checked={shipping === "expedited"}
-              onChange={(e) => setShipping(e.target.value)}
+              type="text"
+              name="state"
+              value={form.state}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
             />
-            <span>Expedited Shipping (₹199)</span>
-          </label>
-        </div>
-
-        {/* Shipping cost */}
-        <div className="flex justify-between">
-          <span>Shipping Cost:</span>
-          <span>{shippingCost > 0 ? `₹${shippingCost}` : "₹0"}</span>
-        </div>
-
-        <div className="flex justify-between font-semibold text-lg border-t pt-2 mt-2">
-          <span>Total:</span>
-          <span>₹{finalTotal.toFixed(2)}</span>
-        </div>
-
-        {clientSecret && (
-          <Elements stripe={stripePromise} options={{ clientSecret }}>
-            <StripeCheckoutForm
-              clientSecret={clientSecret}
-              amount={finalTotal}
-              isFormValid={isFormValid}
+            {errors.state && <p className="text-red-500 text-sm">{errors.state}</p>}
+          </div>
+          {/* Pincode */}
+          <div>
+            <label className="block font-medium">Pincode *</label>
+            <input
+              type="text"
+              name="pincode"
+              value={form.pincode}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2"
             />
-          </Elements>
-        )}
+            {errors.pincode && <p className="text-red-500 text-sm">{errors.pincode}</p>}
+          </div>
+        </form>
+
+        {/* Order Summary */}
+        <div className="bg-gray-50 p-6 rounded-lg shadow space-y-3">
+          <h2 className="text-xl font-bold mb-4">Order Details</h2>
+
+          <div className="divide-y">
+            {cartArray.map((item) => {
+              const product = products.find((p) => p._id === item.product_id);
+              if (!product) return null;
+              return (
+                <div key={item.id} className="flex justify-between py-2">
+                  <span>{product.name} × {item.quantity}</span>
+                  <span>₹{(product.price * item.quantity).toFixed(2)}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ✅ Coupon Dropdown */}
+          <CouponBox
+            subtotal={subtotal}
+            setDiscount={setDiscount}
+            setFinalTotal={setFinalTotal}
+          />
+
+          {/* Price Summary */}
+          <div className="flex justify-between">
+            <span>Subtotal:</span>
+            <span>₹{subtotal.toFixed(2)}</span>
+          </div>
+
+          {discount > 0 && (
+            <div className="flex justify-between text-green-600">
+              <span>Discount:</span>
+              <span>- ₹{discount.toFixed(2)}</span>
+            </div>
+          )}
+
+          {/* Shipping */}
+          <div className="space-y-2">
+            <p className="font-medium">Shipping:</p>
+            <label className="flex items-center space-x-2">
+              <input
+                type="radio"
+                value="free"
+                checked={shipping === "free"}
+                onChange={(e) => setShipping(e.target.value)}
+              />
+              <span>Free Shipping (₹0)</span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="radio"
+                value="expedited"
+                checked={shipping === "expedited"}
+                onChange={(e) => setShipping(e.target.value)}
+              />
+              <span>Expedited Shipping (₹199)</span>
+            </label>
+          </div>
+
+          <div className="flex justify-between">
+            <span>Shipping Cost:</span>
+            <span>{shippingCost > 0 ? `₹${shippingCost}` : "₹0"}</span>
+          </div>
+
+          <div className="flex justify-between font-semibold text-lg border-t pt-2 mt-2">
+            <span>Total:</span>
+            <span>₹{finalTotal.toFixed(2)}</span>
+          </div>
+
+          {clientSecret && (
+            <Elements stripe={stripePromise} options={{ clientSecret }}>
+              <StripeCheckoutForm
+                clientSecret={clientSecret}
+                amount={finalTotal}
+                isFormValid={isFormValid}
+                form={form}
+                cartArray={cartArray}
+                shippingCost={shippingCost}
+                appliedCoupon={coupon}
+              />
+            </Elements>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
 /** Stripe Checkout Form **/
-function StripeCheckoutForm({ clientSecret, amount, isFormValid }) {
+function StripeCheckoutForm({ clientSecret, amount, isFormValid , form , cartArray, shippingCost , appliedCoupon }) {
   const stripe = useStripe();
   const elements = useElements();
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isPaymentElementComplete, setIsPaymentElementComplete] = useState(
-    false
-  );
+  const [isPaymentElementComplete, setIsPaymentElementComplete] = useState(false);
 
   const handleChange = (event) => {
     setIsPaymentElementComplete(event.complete);
@@ -435,6 +425,34 @@ function StripeCheckoutForm({ clientSecret, amount, isFormValid }) {
       return;
     }
 
+    // Save order to backend before confirming payment
+    
+    try {
+      const storedUser = JSON.parse(localStorage.getItem("user"));
+      const encoded = Buffer.from(clientSecret).toString("base64");
+      const res = await fetch("http://127.0.0.1:8000/api/save-order-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          form,
+          cart_items: cartArray,
+          total_amount: amount,
+          shipping_cost: shippingCost,
+          payment_intent_id: '',
+          payment_status : '',
+          applied_coupon : appliedCoupon,
+          user_id: storedUser ? storedUser.id : null,
+          user_email: storedUser ? storedUser.email : null,
+        }),
+      });
+      const data = await res.json();
+      localStorage.setItem("user_info_id", data.user_info_id);
+    } catch (err) {
+      console.error("Error saving order:", err);
+    }
+
+    // Save order to backend before confirming payment
+
     const { error: submitError } = await elements.submit();
     if (submitError) {
       setErrorMessage(submitError.message);
@@ -442,28 +460,30 @@ function StripeCheckoutForm({ clientSecret, amount, isFormValid }) {
       return;
     }
 
-    const { error } = await stripe.confirmPayment({
+    const { error , paymentIntent } = await stripe.confirmPayment({
       elements,
       clientSecret,
+      //redirect: "if_required"
       confirmParams: {
-        return_url: `http://localhost:3000/payment-success?amount=${amount}`,
+        return_url: `http://localhost:3000/payment-success?amount=${amount}&user_info_id=${Buffer.from(localStorage.getItem("user_info_id")).toString("base64")}`,
       },
     });
 
     if (error) setErrorMessage(error.message);
     setLoading(false);
+
+      // Redirect to success page
+      //window.location.href = `/payment-success?amount=${amount}`;
+    //}
   };
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4">
       <PaymentElement onChange={handleChange} />
-
       {errorMessage && <p className="text-red-500">{errorMessage}</p>}
       <button
         type="submit"
-        disabled={
-          !stripe || !isFormValid || !isPaymentElementComplete || loading
-        }
+        disabled={!stripe || !isFormValid || !isPaymentElementComplete || loading}
         className={`w-full py-2 rounded-lg font-semibold ${
           !stripe || !isFormValid || !isPaymentElementComplete
             ? "bg-gray-400 cursor-not-allowed text-gray-200"

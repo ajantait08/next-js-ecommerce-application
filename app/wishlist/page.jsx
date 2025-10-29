@@ -10,6 +10,12 @@ import Image from "next/image";
 const WishlistPage = () => {
   const { wishlist, router, toggleWishlist } = useAppContext();
 
+  // const user = JSON.parse(localStorage.getItem("user"));
+  //     if (!user?.id) {
+  //       router.push("/auth/login");
+  //       return;
+  //     }
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />

@@ -30,7 +30,7 @@ const Product = () => {
 
   // Handle Buy Now click — add to cart and redirect to checkout
   const handleBuyNow = (productId) => {
-    addToCart(productId);
+    addToCart(productId,true);
     router.push("/checkout");
   };
 

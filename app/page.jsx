@@ -7,6 +7,8 @@ import NewsLetter from "@/components/NewsLetter";
 import FeaturedProduct from "@/components/FeaturedProduct";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { useAuth } from "@/context/AuthContext";
+//const { isAuthenticated } = useAuth();
 
 const Home = () => {
   return (

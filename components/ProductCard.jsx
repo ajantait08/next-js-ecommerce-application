@@ -4,24 +4,39 @@ import { assets } from "@/assets/assets";
 import Image from "next/image";
 import { useAppContext } from "@/context/AppContext";
 import { useCartContext } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 
 const ProductCard = ({ product }) => {
-  const { currency, router , toggleWishlist , isInWishlist } = useAppContext();
+  const { currency, router , toggleWishlist , wishlist} = useAppContext();
   const { addToCart } = useCartContext();
   
-  const isWishlisted = isInWishlist(product._id);
+  const isWishlisted = wishlist.some((item) => item._id === product._id);
+  const { isAuthenticated } = useAuth();
   
 
   // Toggle wishlist status
   const handleWishlistToggle = (e) => {
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user?.id) {
+      e.stopPropagation();
+      router.push("/auth/login");
+      return;
+    }
     e.stopPropagation(); // Prevent redirect when clicking the heart
-    toggleWishlist(product);
+    toggleWishlist(product);   
   };
 
   const handleBuyNow = (productId) => {
-    addToCart(productId);
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user?.id) {
+      router.push("/auth/login");
+      return;
+    }
+    addToCart(productId, true);
     router.push("/checkout");
   };
+
+  //console.log("product",product.image);
 
   return (
     <div
@@ -42,7 +57,11 @@ const ProductCard = ({ product }) => {
 
         {/* Wishlist button */}
         <button
-          onClick={handleWishlistToggle}
+          //onClick={handleWishlistToggle}
+          onClick={(e) => {
+            e.stopPropagation(); // prevent product page redirect
+            handleWishlistToggle(e)
+          }}
           className={`absolute top-2 right-2 bg-white p-2 rounded-full shadow-md wishlist transition hover:scale-110 ${
             isWishlisted ? "bg-red-100" : ""
           }`}
