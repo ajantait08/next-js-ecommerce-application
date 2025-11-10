@@ -76,7 +76,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="flex justify-between text-sm text-gray-500 mt-2">
+          {/* <div className="flex justify-between text-sm text-gray-500 mt-2">
             <label className="flex items-center gap-1">
               <input type="checkbox" className="accent-blue-500" /> Remember me
             </label>
@@ -87,7 +87,7 @@ export default function LoginPage() {
             >
               Forgot password?
             </button>
-          </div>
+          </div> */}
 
           <button
             type="submit"
@@ -100,6 +100,20 @@ export default function LoginPage() {
           {message && (
             <p className="text-center text-red-500 text-sm mt-3">{message}</p>
           )}
+
+          <div className="flex items-center text-sm text-gray-500 mt-2">
+            <label className="flex items-center gap-1 justify-between">
+              Don't Have an Account?
+            </label>
+            {/* <button
+              type="button"
+              className="text-blue-600 hover:underline"
+              onClick={() => alert('Forgot password feature coming soon')}
+            >
+              Sign Up Now
+            </button> */}
+            <a href="/auth/register" className="text-blue-600 hover:underline">&nbsp;&nbsp;Sign Up Now</a>
+          </div>
         </form>
       </div>
     </div>

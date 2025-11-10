@@ -8,7 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const ProductCard = ({ product }) => {
   const { currency, router , toggleWishlist , wishlist} = useAppContext();
-  const { addToCart } = useCartContext();
+  const { addToCart , handleBuyNowContext } = useCartContext();
   
   const isWishlisted = wishlist.some((item) => item._id === product._id);
   const { isAuthenticated } = useAuth();
@@ -32,7 +32,8 @@ const ProductCard = ({ product }) => {
       router.push("/auth/login");
       return;
     }
-    addToCart(productId, true);
+    //addToCart(productId, true);
+    handleBuyNowContext(productId);
     router.push("/checkout");
   };
 

@@ -14,7 +14,7 @@ import React from "react";
 const Product = () => {
   const { id } = useParams();
   const { products, router } = useAppContext();
-  const { addToCart } = useCartContext();
+  const { addToCart , handleBuyNowContext} = useCartContext();
 
   const [mainImage, setMainImage] = useState(null);
   const [productData, setProductData] = useState(null);
@@ -30,7 +30,8 @@ const Product = () => {
 
   // Handle Buy Now click — add to cart and redirect to checkout
   const handleBuyNow = (productId) => {
-    addToCart(productId,true);
+    //addToCart(productId,true); // Stop the product from being sending to cart.
+    handleBuyNowContext(productId);
     router.push("/checkout");
   };
 

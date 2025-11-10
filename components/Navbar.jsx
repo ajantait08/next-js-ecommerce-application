@@ -11,8 +11,9 @@ const Navbar = () => {
   const { isSeller, router } = useAppContext();
   const { toggleCart, cartItems } = useCartContext();
   const cartArray = Object.entries(cartItems);
-
   const [user, setUser] = useState(null);
+
+  const { isBuyNowActive } = useCartContext();
 
   useEffect(() => {
     // Get user info from localStorage on mount
@@ -21,6 +22,13 @@ const Navbar = () => {
   }, []);
 
   const handleWishlistLink = (e) => {
+    if (!user?.id) {
+      e.preventDefault();
+      router.push("/auth/login");
+    }
+  };
+
+  const handleContactUsLink = (e) => {
     if (!user?.id) {
       e.preventDefault();
       router.push("/auth/login");
@@ -66,11 +74,19 @@ const Navbar = () => {
         <Link href="/about" className="hover:text-gray-900 transition">
           About Us
         </Link>
-        <Link href="/contact" className="hover:text-gray-900 transition">
+        <Link href="/contact"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleContactUsLink(e);
+        }}
+         className="hover:text-gray-900 transition">
           Contact
         </Link>
 
+        
+  
         {/* Cart Icon */}
+        {!isBuyNowActive && (
         <button onClick={toggleCart} className="relative text-xl">
           🛒
           {cartArray.length > 0 && (
@@ -79,6 +95,7 @@ const Navbar = () => {
             </span>
           )}
         </button>
+        )}
 
         <SlideCart />
 

@@ -35,7 +35,7 @@ export default function RegisterPage() {
 
       if (res.ok) {
         setMessage("Registration successful ✅");
-        router.push("/login");
+        router.push("/auth/login");
       } else {
         setMessage("❌ " + JSON.stringify(data.errors));
       }

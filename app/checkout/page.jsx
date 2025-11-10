@@ -12,7 +12,9 @@ import {
 } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { useState, useEffect, useMemo } from "react";
+import { useRouter,usePathname } from "next/navigation";
 import CouponBox from "@/components/CouponBox"; // ✅ dynamic coupon dropdown component
+
 
 if (!process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY) {
   throw new Error("NEXT_PUBLIC_STRIPE_PUBLIC_KEY is not defined!");
@@ -24,13 +26,49 @@ export default function CheckoutPage() {
   const {
     cartItems,
     incrementQuantity,
+    incrementBuyNowQuantity,
     decrementQuantity,
+    decrementBuyNowQuantity,
     removeFromCart,
-    coupon
+    coupon,
+    user,
+    tempSessionData,
+    setTempSessionData, // ✅ ensure this exists in CartContext
+    loadingTempSession,
+    setLoadingTempSession, // ✅ ensure this exists in CartContext
+    setCartItems, // ✅ optional, if you want to clear cart too
+    verifyTempSessionFromCheckout
   } = useCartContext();
+  
   const { products } = useAppContext();
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const cartArray = Array.isArray(cartItems) ? cartItems : [];
+  console.log(cartItems);
+  console.log(tempSessionData);
+  //console.log(tempSessionData.data.length);
+
+  // ✅ Dynamically build cartArray when context data changes
+  const cartArray = (() => {
+    if (!tempSessionData) return Array.isArray(cartItems) ? cartItems : [];
+    if (tempSessionData?.success) {
+      const data = tempSessionData.data;
+      if (data && !Array.isArray(data)) return [data];
+      if (Array.isArray(data)) return data;
+    }
+    return Array.isArray(cartItems) ? cartItems : [];
+  })();
+
+  console.log("Cart Array in Checkout:", cartArray);
+
+  useEffect(() => {
+    return () => {
+      setTempSessionData(null);       // ✅ clear temp buy-now session
+      //setLoadingTempSession(true);    // ✅ reset loader state
+      setCartItems([]);               // ✅ optional: clear cart
+    };
+  }, [pathname]);
+
   const [shipping, setShipping] = useState("free");
   const [clientSecret, setClientSecret] = useState("");
   const [isCreatingIntent, setIsCreatingIntent] = useState(false);
@@ -73,10 +111,6 @@ export default function CheckoutPage() {
   // ---- Validation ----
   const validateField = (name, value) => {
     switch (name) {
-      case "email":
-        if (!value) return "Email is required";
-        if (!/\S+@\S+\.\S+/.test(value)) return "Invalid email format";
-        break;
       case "phone":
         if (!value) return "Phone number is required";
         if (!/^\d{10}$/.test(value)) return "Invalid phone number";
@@ -165,6 +199,17 @@ export default function CheckoutPage() {
 
   const isCartEmpty = Object.keys(cartItems).length === 0;
 
+  if (!cartArray.length) {
+    return (
+      <>
+        <Navbar />
+        <div className="flex justify-center items-center h-screen text-gray-600">
+          Loading your order details...
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
     <HideErrorText />
@@ -180,11 +225,12 @@ export default function CheckoutPage() {
             <input
               type="email"
               name="email"
-              value={form.email}
+              value={user?.email || form.email}
               onChange={handleChange}
-              className="w-full border rounded px-3 py-2"
+              disabled={Boolean(user?.email)}
+              className="w-full border rounded px-3 py-2 disabled:bg-gray-100 disabled:text-gray-500"
             />
-            {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
+            {/*errors.email && <p className="text-red-500 text-sm">{errors.email}</p>*/}
           </div>
 
           {/* Phone */}
@@ -230,6 +276,41 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {/* Address */}
+          <div>
+            {/* <label className="block font-medium">Street address *</label> */}
+            {/* <input
+              type="text"
+              name="street"
+              value={form.street}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 mb-2"
+              placeholder="Search location"
+            /> */}
+
+            <AddressAutocomplete
+            form={form}
+            setForm={setForm}
+            errors={errors}
+            handleChange={handleChange}
+            />
+
+            {/* Apartment*/}
+            <input
+              type="text"
+              name="apartment"
+              value={form.apartment}
+              onChange={handleChange}
+              className="w-full border rounded px-3 py-2 mt-4"
+              placeholder="Apartment, suite, unit, etc. (optional)"
+            />
+            {/* {errors.street && (
+              <p className="text-red-500 text-sm">{errors.street}</p>
+            )} */}
+          </div>
+
+          {/* Address */}
+
           {/* Country */}
           <div>
             <label className="block font-medium">Country / Region *</label>
@@ -250,29 +331,6 @@ export default function CheckoutPage() {
             )}
           </div>
 
-          {/* Address */}
-          <div>
-            <label className="block font-medium">Street address *</label>
-            <input
-              type="text"
-              name="street"
-              value={form.street}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2 mb-2"
-              placeholder="House number and street name"
-            />
-            <input
-              type="text"
-              name="apartment"
-              value={form.apartment}
-              onChange={handleChange}
-              className="w-full border rounded px-3 py-2"
-              placeholder="Apartment, suite, unit, etc. (optional)"
-            />
-            {errors.street && (
-              <p className="text-red-500 text-sm">{errors.street}</p>
-            )}
-          </div>
 
           {/* City */}
           <div>
@@ -317,18 +375,87 @@ export default function CheckoutPage() {
         <div className="bg-gray-50 p-6 rounded-lg shadow space-y-3">
           <h2 className="text-xl font-bold mb-4">Order Details</h2>
 
-          <div className="divide-y">
+          {loadingTempSession ? (<div className="flex items-center justify-center py-10">
+    {/* 🔄 Simple Spinner */}
+    <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-blue-500"></div>
+  </div>):(<div className="divide-y">
             {cartArray.map((item) => {
               const product = products.find((p) => p._id === item.product_id);
               if (!product) return null;
+
+              const isBuyNowItem = Boolean(tempSessionData); // for single-product buy-now sessions
+              const disableDecrement = item.quantity <= 1
               return (
-                <div key={item.id} className="flex justify-between py-2">
-                  <span>{product.name} × {item.quantity}</span>
-                  <span>₹{(product.price * item.quantity).toFixed(2)}</span>
-                </div>
+                <div key={item.id} className="flex justify-between items-center py-3">
+          <div className="flex items-center gap-3">
+            <img
+              src={product.image || item.image}
+              alt={product.name}
+              className="w-12 h-12 rounded object-cover border"
+            />
+            <div>
+              <p className="font-medium">{product.name}</p>
+              <p className="text-sm text-gray-500">₹{product.price.toFixed(2)}</p>
+
+              {/* Quantity Controls */}
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={() =>
+                    isBuyNowItem
+                      ? decrementBuyNowQuantity(item.product_id)
+                      : decrementQuantity(item.product_id)
+                  }
+                  className={`px-2 py-1 border rounded font-bold transition ${
+                    disableDecrement
+                      ? "bg-gray-300 text-gray-500 border-gray-300 cursor-not-allowed"
+                      : "bg-white text-gray-700 border-gray-400 hover:bg-gray-100 hover:border-gray-500"
+                  }`}
+                  disabled={disableDecrement}
+                >
+                  −
+                </button>
+
+                <span className="px-2 text-sm">{item.quantity}</span>
+
+                <button
+                  onClick={() =>
+                    isBuyNowItem
+                      ? incrementBuyNowQuantity(item.product_id)
+                      : incrementQuantity(item.product_id)
+                  }
+                  className="px-2 py-1 border rounded hover:bg-gray-200"
+                  //disabled={isBuyNowItem}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <p className="font-semibold">
+              ₹{(product.price * item.quantity).toFixed(2)}
+            </p>            
+            {isBuyNowItem ?
+              <button
+                onClick={() => verifyTempSessionFromCheckout(item.product_id)}
+                className="text-red-500 text-xs mt-1 hover:underline"
+              >
+                Remove
+              </button>
+              :
+              <button
+                onClick={() => removeFromCart(item.product_id)}
+                className="text-red-500 text-xs mt-1 hover:underline"
+              >
+                Remove
+              </button>
+            }
+          </div>
+        </div>
               );
             })}
-          </div>
+          </div>)}
 
           {/* ✅ Coupon Dropdown */}
           <CouponBox
@@ -403,6 +530,71 @@ export default function CheckoutPage() {
   );
 }
 
+/** React Places autocomplete **/
+/** ✅ AddressAutocomplete using Nominatim **/
+function AddressAutocomplete({ form, setForm, errors, handleChange }) {
+  const [suggestions, setSuggestions] = useState([]);
+
+  const fetchSuggestions = async (query) => {
+    if (!query) return setSuggestions([]);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(query)}`
+      );
+      const data = await res.json();
+      setSuggestions(data.slice(0, 5));
+    } catch (err) {
+      console.error("Error fetching address suggestions:", err);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <label className="block font-medium">Street address *</label>
+      <input
+        type="text"
+        name="street"
+        value={form.street}
+        onChange={(e) => {
+          handleChange(e);
+          fetchSuggestions(e.target.value);
+        }}
+        className="w-full border rounded px-3 py-2 mb-2"
+        placeholder="Search location"
+      />
+
+      {suggestions.length > 0 && (
+        <ul className="absolute z-10 bg-white border w-full rounded shadow max-h-48 overflow-y-auto">
+          {suggestions.map((item, idx) => (
+            <li
+              key={idx}
+              className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
+              onClick={() => {
+                const addr = item.address || {};
+                setForm((prev) => ({
+                  ...prev,
+                  street: item.display_name || "",
+                  city: addr.city || addr.town || addr.village || "",
+                  state: addr.state || "",
+                  country: addr.country || "",
+                  pincode: addr.postcode || "",
+                }));
+                setSuggestions([]);
+              }}
+            >
+              {item.display_name}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {errors.street && <p className="text-red-500 text-sm">{errors.street}</p>}
+    </div>
+  );
+}
+
+/** React Places autocomplete **/
+
 /** Stripe Checkout Form **/
 function StripeCheckoutForm({ clientSecret, amount, isFormValid , form , cartArray, shippingCost , appliedCoupon }) {
   const stripe = useStripe();
@@ -410,6 +602,7 @@ function StripeCheckoutForm({ clientSecret, amount, isFormValid , form , cartArr
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [isPaymentElementComplete, setIsPaymentElementComplete] = useState(false);
+  console.log('entered the stripe checkout form !');
 
   const handleChange = (event) => {
     setIsPaymentElementComplete(event.complete);
@@ -428,6 +621,7 @@ function StripeCheckoutForm({ clientSecret, amount, isFormValid , form , cartArr
     // Save order to backend before confirming payment
     
     try {
+
       const storedUser = JSON.parse(localStorage.getItem("user"));
       const encoded = Buffer.from(clientSecret).toString("base64");
       const res = await fetch("http://127.0.0.1:8000/api/save-order-details", {
@@ -446,10 +640,13 @@ function StripeCheckoutForm({ clientSecret, amount, isFormValid , form , cartArr
         }),
       });
       const data = await res.json();
+      console.log("Order saved:", data);
       localStorage.setItem("user_info_id", data.user_info_id);
     } catch (err) {
       console.error("Error saving order:", err);
     }
+
+    //e.stopPropagation();
 
     // Save order to backend before confirming payment
 
